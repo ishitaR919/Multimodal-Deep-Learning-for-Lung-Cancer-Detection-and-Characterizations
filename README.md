@@ -10,7 +10,7 @@ Phase 1 builds the **CT-only reference model** that the later multimodal phases 
 
 | Phase | Data | Goal |
 |---|---|---|
-| **1 (this repo)** | LUNA16 (CT) | CT-only baseline: nodule vs. non-nodule |
+| **1** | LUNA16 (CT) | CT-only baseline: nodule vs. non-nodule |
 | 2 | LUNG-PET-CT-Dx (CT + PET + clinical) | early / intermediate / late / cross-attention fusion |
 | 3 | NSCLC-Radiomics (CT + radiomics + clinical) | survival prognosis with radiomic and clinical fusion |
 
