@@ -1,0 +1,9 @@
+numpy
+pandas
+SimpleITK
+scikit-learn
+matplotlib
+seaborn
+torch
+torchvision
+grad-cam
