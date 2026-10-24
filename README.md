@@ -53,9 +53,6 @@ The label is *nodule or not*, not benign vs. malignant.
 ![Phase 1 architecture](figures/flow_diagram.png)
 
 
-Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd).
-
-
 ## Results (held-out test scans, threshold 0.5)
 
 
@@ -103,9 +100,8 @@ All figures: [`figures/eda`](figures/eda), [`figures/per_model`](figures/per_mod
 ```
 Phase 1 (CT-only Baseline)/
 ├── README.md
-├── architecture.mmd                  # pipeline diagram (Mermaid)
 ├── kaggle_notebook/
-│   └── phase1_luna16.py              # full notebook, cell by cell (# %% markers), as run on Kaggle
+│   └── phase-1-ct-based.ipynb        # full notebook, cell by cell, as run on Kaggle
 ├── code/                             # the same pipeline split into one script per step
 │   ├── config.py                     # paths and settings (override with LUNA16_INPUT / WORK_DIR)
 │   ├── common.py                     # dataset, model builder, training/evaluation, ECE
@@ -157,7 +153,7 @@ export WORK_DIR=./work                   # where crops, results and figures are 
 python 01_preprocess.py
 python 02_split.py
 python 03_eda.py
-python 04_train.py                       # or: python 04_train.py resnet50 vgg16_bn
+python 04_train.py                      
 python 05_compare_ensemble.py
 python 06_gradcam.py
 python 07_bundle_results.py
