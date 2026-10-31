@@ -142,9 +142,6 @@ flowchart TB
 ```
 
 
-Source: [`system_architecture.mmd`](system_architecture.mmd).
-
-
 ### Shared methodology (all phases)
 
 
@@ -689,7 +686,7 @@ Source: [`proposed_model.mmd`](proposed_model.mmd).
 </tr>
 <tr>
 <th>Phase 3<br/>CT + radiomics + clinical</th>
-<td><img src="phase3-radiomics-survival/figures/eda2_crop_montage.png" width="260"/><br/><sub>2.5D CT crops with the tumour outline (red) for survivors and non-survivors.</sub></td>
+<td><img src="phase3-radiomics-survival/figures/explain_gradcam_ct_cnn.png" width="260"/><br/><sub>2.5D CT crops with the tumour outline (red) for survivors and non-survivors.</sub></td>
 <td><img src="phase3-radiomics-survival/figures/eval3_km_risk_groups.png" width="260"/><br/><sub>Kaplan-Meier curves of predicted high- vs low-risk patients, with log-rank p and C-index.</sub></td>
 <td><img src="phase3-radiomics-survival/figures/explain_radiomic_signature.png" width="260"/><br/><sub>Radiomic signature: features linked to higher or lower 2-year mortality.</sub></td>
 </tr>

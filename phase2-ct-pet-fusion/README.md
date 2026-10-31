@@ -63,9 +63,6 @@ All comparisons are made within this dataset, on the same patients and folds.
 ![Phase 2 architecture](figures/flow_diagram.png)
 
 
-Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd).
-
-
 ## Results (pooled out-of-fold, patient level, threshold 0.5)
 
 

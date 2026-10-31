@@ -67,9 +67,6 @@ Predict **death within 2 years** of the planning CT (Aerts et al. 2014; Hosny et
 ![Phase 3 architecture](figures/flow_diagram.png)
 
 
-Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd).
-
-
 ## Results (pooled out-of-fold, patient level, threshold 0.5)
 
 

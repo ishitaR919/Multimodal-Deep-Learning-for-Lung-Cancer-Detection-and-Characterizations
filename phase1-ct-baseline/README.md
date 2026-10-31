@@ -53,9 +53,6 @@ The label is *nodule or not*, not benign vs. malignant.
 ![Phase 1 architecture](figures/flow_diagram.png)
 
 
-Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd).
-
-
 ## Results (held-out test scans, threshold 0.5)
 
 
