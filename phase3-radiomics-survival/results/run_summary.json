@@ -1,0 +1,29 @@
+{
+  "quick_test": false,
+  "feature_set": "lite",
+  "n_patients": 403,
+  "n_folds": 5,
+  "epochs": 25,
+  "horizon_days": 730,
+  "k_rad": 10,
+  "n_radiomic_features": 27,
+  "label_counts": {
+    "1": 240,
+    "0": 163
+  },
+  "models_trained": [
+    "tab_clinical_lr",
+    "tab_volume_lr",
+    "tab_radiomics_lr",
+    "tab_clin_radiomics_lr",
+    "tab_clin_radiomics_rf",
+    "ct_cnn",
+    "ct_rad_mid",
+    "ct_rad_clin_mid",
+    "gated",
+    "gated_md",
+    "late_ct_rad",
+    "late_ct_rad_clin"
+  ],
+  "seed": 42
+}

@@ -1,0 +1,25 @@
+{
+  "task": "adeno_vs_rest",
+  "quick_test": false,
+  "n_patients": 78,
+  "n_folds": 5,
+  "epochs": 25,
+  "label_counts": {
+    "0": 59,
+    "1": 19
+  },
+  "models_trained": [
+    "ct_only",
+    "pet_only",
+    "early",
+    "intermediate",
+    "intermediate_clin",
+    "cross_attn",
+    "cross_attn_md",
+    "cross_attn_md_clin"
+  ],
+  "crop_fov_mm": 160.0,
+  "crop_px": 128,
+  "slices_per_patient": 7,
+  "seed": 42
+}
