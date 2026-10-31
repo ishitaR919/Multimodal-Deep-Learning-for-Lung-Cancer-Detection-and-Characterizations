@@ -1,0 +1,8 @@
+streamlit>=1.35
+numpy
+pandas
+torch
+torchvision
+SimpleITK
+scikit-learn
+grad-cam
