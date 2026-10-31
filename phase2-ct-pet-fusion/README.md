@@ -69,22 +69,41 @@ Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd)
 ## Results (pooled out-of-fold, patient level, threshold 0.5)
 
 
-Fill from `phase2_results/results_all_models.csv` after the run.
-
-
-| Model | ROC-AUC [95% CI] | PR-AUC | Sens. | Spec. | F1 | Brier |
+| Model | ROC-AUC [95% CI] | PR-AUC | Bal. acc. | Sens. | Spec. | Brier ↓ |
 |---|---|---|---|---|---|---|
-| Clinical + ROI features (LR) | | | | | | |
-| CT only | | | | | | |
-| PET only | | | | | | |
-| Early fusion | | | | | | |
-| Intermediate fusion | | | | | | |
-| Intermediate + clinical | | | | | | |
-| Cross-attention | | | | | | |
-| **Cross-attention + modality dropout (proposed)** | | | | | | |
-| Proposed + clinical | | | | | | |
-| Late fusion (CT, PET) | | | | | | |
-| Soft-vote ensemble (fusion) | | | | | | |
+| Clinical (LR) | 0.747 [0.613, 0.868] | 0.504 | 0.723 | 0.684 | 0.763 | 0.193 |
+| Tumour features (LR) | 0.787 [0.674, 0.884] | 0.492 | 0.724 | 0.737 | 0.712 | 0.183 |
+| Clinical + tumour features (LR) | 0.825 [0.701, 0.937] | 0.586 | **0.802** | **0.789** | 0.814 | 0.148 |
+| **Clinical + tumour features (RF)** | **0.841 [0.740, 0.933]** | **0.631** | 0.703 | 0.474 | 0.932 | **0.137** |
+| CT only | 0.632 [0.486, 0.763] | 0.328 | 0.573 | 0.316 | 0.831 | 0.253 |
+| PET only | 0.560 [0.388, 0.715] | 0.325 | 0.527 | 0.105 | **0.949** | 0.200 |
+| Early fusion | 0.707 [0.590, 0.816] | 0.365 | 0.529 | 0.211 | 0.847 | 0.231 |
+| Intermediate fusion | 0.617 [0.454, 0.764] | 0.351 | 0.519 | 0.105 | 0.932 | 0.217 |
+| Intermediate + clinical | 0.702 [0.563, 0.837] | 0.445 | 0.545 | 0.158 | 0.932 | 0.189 |
+| Cross-attention | 0.675 [0.536, 0.802] | 0.379 | 0.590 | 0.316 | 0.864 | 0.202 |
+| **Cross-attention + modality dropout (proposed)** | 0.718 [0.571, 0.836] | 0.419 | 0.634 | 0.421 | 0.847 | 0.190 |
+| Proposed + clinical | 0.715 [0.594, 0.835] | 0.471 | 0.592 | 0.421 | 0.763 | 0.205 |
+| Late fusion (CT, PET) | 0.596 [0.436, 0.749] | 0.401 | 0.554 | 0.211 | 0.898 | 0.200 |
+| Late fusion (CT, PET, clinical) | 0.678 [0.534, 0.812] | 0.473 | 0.563 | 0.211 | 0.915 | 0.171 |
+| Soft vote (early, intermediate, proposed) | 0.721 [0.597, 0.824] | 0.388 | 0.546 | 0.211 | 0.881 | 0.197 |
+| Hard vote (early, intermediate, proposed) | 0.626 [0.494, 0.751] | 0.312 | 0.546 | 0.211 | 0.881 | 0.229 |
+| Soft vote (all image models) | 0.694 [0.561, 0.816] | 0.407 | 0.598 | 0.263 | 0.932 | 0.186 |
+| Hard vote (all image models) | 0.621 [0.478, 0.766] | 0.374 | 0.607 | 0.316 | 0.898 | 0.205 |
+
+
+78 patients (59 adenocarcinoma, 19 other subtypes); PR-AUC of a random model ≈ 0.24.
+
+
+**Findings.**
+- **Combining CT and PET beats either scan alone.** Every CT + PET image model is above the single-scan models:
+ early fusion 0.707, the proposed model 0.718 and the soft vote 0.721, against CT only 0.632 and PET only 0.560.
+- **Modality dropout helps the attention model.** It raises ROC-AUC from 0.675 to 0.718 and sensitivity from 0.32 to
+ 0.42.
+- **Hand-crafted tumour features with clinical data work best.** SUV and HU statistics, tumour size, sex, age,
+ smoking and stage reach 0.825 (logistic regression) and 0.841 (random forest). With 78 patients, simple models on a
+ few strong features learn more reliably than CNNs trained from crops.
+- **The confidence intervals are wide** (about ±0.13) and overlap, so differences between image models should be read
+ as trends.
 
 
 The missing-modality results are in `phase2_results/results_missing_modality.csv`. Figures are in

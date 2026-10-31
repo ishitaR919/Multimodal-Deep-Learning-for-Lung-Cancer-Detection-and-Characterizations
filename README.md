@@ -56,10 +56,93 @@ the same folds. Results are never compared across datasets.
 | **3 · CT + radiomics + clinical** | NSCLC-Radiomics (Lung1) | CT, tumour contour, radiomics, clinical, survival | 2-year overall survival | patient |
 
 
-![Overall system architecture](figures/system_architecture.png)
+### Overall system architecture
 
 
-Editable source: [`system_architecture.mmd`](system_architecture.mmd).
+```mermaid
+flowchart TB
+   subgraph P1["Phase 1 · CT-only baseline — nodule vs non-nodule"]
+       direction LR
+       A1[("LUNA16<br/>chest CT +<br/>candidate points")]
+       A2["Lung window<br/>HU −1000…400"]
+       A3["50 mm cube → 64³<br/>2.5D patch:<br/>axial · coronal · sagittal"]
+       subgraph A4["ImageNet CNNs"]
+           direction TB
+           A4a["ResNet50"]
+           A4b["DenseNet121"]
+           A4c["EfficientNet-B0"]
+           A4d["VGG16-BN"]
+       end
+       A5["Hard / soft<br/>voting"]
+       A6(["Nodule<br/>probability"])
+       A1 --> A2 --> A3 --> A4 --> A5 --> A6
+   end
+
+
+   subgraph P2["Phase 2 · CT + PET fusion — adenocarcinoma vs other subtypes"]
+       direction LR
+       B1[("LUNG-PET-CT-Dx<br/>CT · PET · tumour boxes<br/>· clinical data")]
+       B2["Same-visit CT/PET pairing<br/>PET → SUV<br/>CT/PET on one grid"]
+       B3["Tumour-centred<br/>CT + PET crops"]
+       subgraph B4["Fusion strategies"]
+           direction TB
+           B4a["CT only · PET only"]
+           B4b["Early fusion<br/>2-channel input"]
+           B4c["Intermediate fusion<br/>feature concat"]
+           B4d["Late fusion<br/>probability averaging"]
+           B4e["Cross-attention +<br/>modality dropout<br/>(proposed)"]
+       end
+       B6(["Subtype<br/>probability"])
+       B1 --> B2 --> B3 --> B4 --> B6
+   end
+
+
+   subgraph P3["Phase 3 · CT + radiomics + clinical — 2-year survival"]
+       direction LR
+       C1[("NSCLC-Radiomics<br/>CT · GTV contour<br/>· survival · clinical")]
+       C2["Contour → tumour mask<br/>1 mm isotropic<br/>tumour cube"]
+       C3["Radiomic features<br/>shape · first-order · texture<br/>+ 2.5D CT crops"]
+       subgraph C4["Models"]
+           direction TB
+           C4a["Clinical / volume /<br/>radiomics (LR, RF)"]
+           C4b["CT CNN"]
+           C4c["Intermediate fusion<br/>CT + radiomics + clinical"]
+           C4d["Gated attention +<br/>modality dropout<br/>(proposed)"]
+           C4e["Late fusion"]
+       end
+       C6(["2-year mortality<br/>risk"])
+       C1 --> C2 --> C3 --> C4 --> C6
+   end
+
+
+   subgraph SH["Shared methodology (all phases)"]
+       direction LR
+       D1["Patient-level split (Phase 1)<br/>stratified 5-fold CV (Phases 2–3)<br/>no patient leakage"]
+       D2["Metrics<br/>sensitivity · specificity · F1<br/>ROC-AUC · PR-AUC<br/>Brier · ECE · bootstrap 95% CI<br/>C-index · Kaplan–Meier"]
+       D3["Robustness<br/>missing-modality test"]
+       D4["Explainability<br/>Grad-CAM · modality gates<br/>· SHAP / permutation"]
+       D1 ~~~ D2 ~~~ D3 ~~~ D4
+   end
+
+
+   subgraph OUT["Outcome"]
+       direction LR
+       E1[["Within each dataset:<br/>unimodal vs multimodal<br/>does fusion help?<br/>ablation per modality"]]
+       E2[["Research demo UI<br/>upload · predict · results"]]
+       E1 ~~~ E2
+   end
+
+
+   P1 --> SH
+   P2 --> SH
+   P3 --> SH
+   P1 -. "CT pipeline & methods" .-> P2
+   P2 -. "fusion design" .-> P3
+   SH --> OUT
+```
+
+
+Source: [`system_architecture.mmd`](system_architecture.mmd).
 
 
 ### Shared methodology (all phases)
@@ -106,6 +189,87 @@ The label means *nodule or not*, not benign vs malignant.
 7. Hard and soft voting ensembles; Grad-CAM on the last convolutional block.
 
 
+
+
+**Architecture.**
+
+
+<details open>
+<summary>Phase 1 pipeline</summary>
+
+
+```mermaid
+flowchart LR
+   subgraph S1["Input Data"]
+       direction TB
+       A1[("Thoracic CT scans<br/>LUNA16")]
+       A2[/"Candidate locations<br/>nodule / non-nodule labels"/]
+       A3[/"Radiologist nodule<br/>annotations"/]
+       A1 ~~~ A2 ~~~ A3
+   end
+
+
+   subgraph S2["Preprocessing"]
+       direction TB
+       B1["Class balancing<br/>all nodules + 3 negatives each"]
+       B2["Lung window<br/>HU −1000…400 → 0…1"]
+       B3["Isotropic resampling<br/>50 mm cube → 64³ voxels"]
+       B4["2.5D patch<br/>axial · coronal · sagittal<br/>as 3 channels"]
+       B1 --> B2 --> B3 --> B4
+   end
+
+
+   subgraph S3["Data Split"]
+       direction TB
+       C1["Patient-level split<br/>70 % train · 15 % val · 15 % test"]
+       C2{"No patient in<br/>two splits"}
+       C1 --> C2
+   end
+
+
+   subgraph S4["Model Training"]
+       direction TB
+       D1["Augmentation<br/>flips · rotation ±15°<br/>resize to 224 · ImageNet norm"]
+       subgraph BB["ImageNet-pretrained CNNs"]
+           direction LR
+           D2["ResNet50"]
+           D3["DenseNet121"]
+           D4["EfficientNet-B0"]
+           D5["VGG16-BN"]
+       end
+       D6["Class-weighted cross-entropy<br/>Adam · 25 epochs"]
+       D7["Best checkpoint<br/>by validation ROC-AUC"]
+       D1 --> BB --> D6 --> D7
+   end
+
+
+   subgraph S5["Ensemble & Evaluation"]
+       direction TB
+       E1["Hard voting<br/>majority of class votes"]
+       E2["Soft voting<br/>mean probability"]
+       E3["Sensitivity · specificity · F1<br/>ROC-AUC · PR-AUC"]
+       E4["Calibration<br/>Brier · ECE · reliability"]
+       E1 --> E3
+       E2 --> E3
+       E3 --> E4
+   end
+
+
+   subgraph S6["Explainability & Outcome"]
+       direction TB
+       F1["Grad-CAM<br/>heat maps on CT patches"]
+       F2[["CT-only baseline<br/>for multimodal fusion<br/>in Phases 2 and 3"]]
+       F1 --> F2
+   end
+
+
+   S1 --> S2 --> S3 --> S4 --> S5 --> S6
+```
+
+
+</details>
+
+
 **Results (held-out test scans, threshold 0.5).**
 
 
@@ -143,6 +307,7 @@ Details: [`phase1-ct-baseline/`](phase1-ct-baseline/).
 **Data and cohort.** Patients with a CT and a PET from the same study, tumour bounding boxes and histology labels.
 After checking that the annotated CT series belongs to the PET study (≥ 3 annotated slices located), the cohort is
 **87 patients: 63 adenocarcinoma (label 0) and 24 other subtypes (label 1; 21 squamous, 3 small cell)**.
+After DICOM conversion and crop extraction, **78 patients (59 / 19)** were used for modelling.
 
 
 **Method.**
@@ -162,16 +327,120 @@ After checking that the annotated CT series belongs to the PET study (≥ 3 anno
 6. Patient prediction = mean over slices. Missing-modality test, Grad-CAM, modality gates, SHAP.
 
 
+
+
+**Architecture.**
+
+
+<details open>
+<summary>Phase 2 pipeline</summary>
+
+
+```mermaid
+flowchart LR
+   subgraph S1["Input Data"]
+       direction TB
+       A1[("CT + PET scans<br/>LUNG-PET-CT-Dx")]
+       A2[/"Tumour bounding boxes<br/>on CT slices"/]
+       A3[/"Histology subtype +<br/>clinical data"/]
+       A1 ~~~ A2 ~~~ A3
+   end
+
+
+   subgraph S2["Cohort Building"]
+       direction TB
+       B1["Pair CT and PET<br/>from the same study"]
+       B2["Locate annotated<br/>CT series"]
+       B3{"Enough annotated slices<br/>in the PET study"}
+       B4["Label: adenocarcinoma<br/>vs other subtypes"]
+       B1 --> B2 --> B3 --> B4
+   end
+
+
+   subgraph S3["Preprocessing"]
+       direction TB
+       C1["CT in HU<br/>PET in body-weight SUV"]
+       C2["CT and PET resampled<br/>to one physical grid"]
+       C3["Tumour-centred crops<br/>160 mm · 128 px · up to 7 slices"]
+       C4["Tumour ROI features<br/>SUV · HU · size"]
+       C1 --> C2 --> C3 --> C4
+   end
+
+
+   subgraph S4["Models (5-fold patient-level CV)"]
+       direction TB
+       D1["Tabular baselines<br/>clinical · ROI features"]
+       D2["Unimodal CNNs<br/>CT only · PET only"]
+       D3["Early fusion<br/>2-channel input"]
+       D4["Intermediate fusion<br/>feature concatenation"]
+       D5["Cross-attention +<br/>modality dropout<br/>(proposed)"]
+       D6["Late fusion and<br/>voting ensembles"]
+       D1 ~~~ D2 ~~~ D3 ~~~ D4 ~~~ D5 ~~~ D6
+   end
+
+
+   subgraph S5["Evaluation"]
+       direction TB
+       E1["ROC-AUC · PR-AUC<br/>sensitivity · specificity<br/>bootstrap 95% CI"]
+       E2["Calibration<br/>Brier · reliability"]
+       E3["Missing-modality test<br/>CT or PET blanked"]
+       E1 --> E2 --> E3
+   end
+
+
+   subgraph S6["Explainability & Outcome"]
+       direction TB
+       F1["Grad-CAM on CT and PET<br/>learned modality weights<br/>SHAP on tabular features"]
+       F2[["Does adding PET<br/>beat CT alone?"]]
+       F1 --> F2
+   end
+
+
+   S1 --> S2 --> S3 --> S4 --> S5 --> S6
+```
+
+
+</details>
+
+
 **Results (pooled out-of-fold, patient level).**
 
 
-| Model | ROC-AUC [95% CI] | PR-AUC | Bal. acc. | Sens. | Spec. | Brier |
+| Model | ROC-AUC [95% CI] | PR-AUC | Bal. acc. | Sens. | Spec. | Brier ↓ |
 |---|---|---|---|---|---|---|
-| *to be filled from Phase 2 Cell 18* | | | | | | |
+| Clinical (LR) | 0.747 [0.613, 0.868] | 0.504 | 0.723 | 0.684 | 0.763 | 0.193 |
+| Tumour features (LR) | 0.787 [0.674, 0.884] | 0.492 | 0.724 | 0.737 | 0.712 | 0.183 |
+| Clinical + tumour features (LR) | 0.825 [0.701, 0.937] | 0.586 | **0.802** | **0.789** | 0.814 | 0.148 |
+| **Clinical + tumour features (RF)** | **0.841 [0.740, 0.933]** | **0.631** | 0.703 | 0.474 | 0.932 | **0.137** |
+| CT only | 0.632 [0.486, 0.763] | 0.328 | 0.573 | 0.316 | 0.831 | 0.253 |
+| PET only | 0.560 [0.388, 0.715] | 0.325 | 0.527 | 0.105 | **0.949** | 0.200 |
+| Early fusion | 0.707 [0.590, 0.816] | 0.365 | 0.529 | 0.211 | 0.847 | 0.231 |
+| Intermediate fusion | 0.617 [0.454, 0.764] | 0.351 | 0.519 | 0.105 | 0.932 | 0.217 |
+| Intermediate + clinical | 0.702 [0.563, 0.837] | 0.445 | 0.545 | 0.158 | 0.932 | 0.189 |
+| Cross-attention | 0.675 [0.536, 0.802] | 0.379 | 0.590 | 0.316 | 0.864 | 0.202 |
+| **Cross-attention + modality dropout (proposed)** | 0.718 [0.571, 0.836] | 0.419 | 0.634 | 0.421 | 0.847 | 0.190 |
+| Proposed + clinical | 0.715 [0.594, 0.835] | 0.471 | 0.592 | 0.421 | 0.763 | 0.205 |
+| Late fusion (CT, PET) | 0.596 [0.436, 0.749] | 0.401 | 0.554 | 0.211 | 0.898 | 0.200 |
+| Late fusion (CT, PET, clinical) | 0.678 [0.534, 0.812] | 0.473 | 0.563 | 0.211 | 0.915 | 0.171 |
+| Soft vote (early, intermediate, proposed) | 0.721 [0.597, 0.824] | 0.388 | 0.546 | 0.211 | 0.881 | 0.197 |
+| Hard vote (early, intermediate, proposed) | 0.626 [0.494, 0.751] | 0.312 | 0.546 | 0.211 | 0.881 | 0.229 |
+| Soft vote (all image models) | 0.694 [0.561, 0.816] | 0.407 | 0.598 | 0.263 | 0.932 | 0.186 |
+| Hard vote (all image models) | 0.621 [0.478, 0.766] | 0.374 | 0.607 | 0.316 | 0.898 | 0.205 |
 
 
-**Missing-modality robustness:** *to be filled from Phase 2 Cell 19.*
-**Fusion vs CT only (paired bootstrap):** *to be filled from `compare_phases.py`.*
+78 patients (59 adenocarcinoma, 19 other subtypes); PR-AUC of a random model ≈ 0.24.
+
+
+**Findings.**
+- **Combining CT and PET beats either scan alone.** Every CT + PET image model is above the single-scan models:
+ early fusion 0.707, the proposed model 0.718 and the soft vote 0.721, against CT only 0.632 and PET only 0.560.
+- **Modality dropout helps the attention model.** It raises ROC-AUC from 0.675 to 0.718 and sensitivity from 0.32 to
+ 0.42.
+- **Hand-crafted tumour features with clinical data work best.** SUV and HU statistics, tumour size, sex, age,
+ smoking and stage reach 0.825 (logistic regression) and 0.841 (random forest). With 78 patients, simple models on a
+ few strong features learn more reliably than CNNs trained from crops.
+- **The confidence intervals are wide** (about ±0.13) and overlap, so differences between image models should be read
+ as trends.
 
 
 Details: [`phase2-ct-pet-fusion/`](phase2-ct-pet-fusion/).
@@ -210,15 +479,116 @@ and are excluded from the classification task.
 7. Evaluation adds C-index and Kaplan–Meier curves of predicted high- vs low-risk groups (log-rank test).
 
 
+
+
+**Architecture.**
+
+
+<details open>
+<summary>Phase 3 pipeline</summary>
+
+
+```mermaid
+flowchart LR
+   subgraph S1["Input Data"]
+       direction TB
+       A1[("Planning CT scans<br/>NSCLC-Radiomics")]
+       A2[/"GTV tumour contours<br/>(RTSTRUCT)"/]
+       A3[/"Clinical data<br/>age · stage · histology<br/>survival time · death"/]
+       A1 ~~~ A2 ~~~ A3
+   end
+
+
+   subgraph S2["Cohort & Labels"]
+       direction TB
+       B1["Pair each CT with<br/>its tumour contour"]
+       B2["2-year survival label<br/>died ≤ 2 y = 1 · alive > 2 y = 0"]
+       B3["Censored before 2 y:<br/>no label, kept for C-index"]
+       B1 --> B2 --> B3
+   end
+
+
+   subgraph S3["Tumour Processing"]
+       direction TB
+       C1["Contour → tumour mask"]
+       C2["1 mm isotropic<br/>tumour cube"]
+       C3["Radiomic features<br/>shape · intensity · texture"]
+       C4["2.5D CT crops<br/>axial · coronal · sagittal"]
+       C1 --> C2 --> C3
+       C2 --> C4
+   end
+
+
+   subgraph S4["Models (5-fold patient-level CV)"]
+       direction TB
+       D1["Clinical · tumour volume ·<br/>radiomics baselines"]
+       D2["CT CNN<br/>ImageNet ResNet-18"]
+       D3["Intermediate fusion<br/>CT + radiomics + clinical"]
+       D4["Gated attention fusion<br/>+ modality dropout<br/>(proposed)"]
+       D5["Late fusion<br/>probability averaging"]
+       D1 ~~~ D2 ~~~ D3 ~~~ D4 ~~~ D5
+   end
+
+
+   subgraph S5["Evaluation"]
+       direction TB
+       E1["ROC-AUC · PR-AUC<br/>sensitivity · specificity"]
+       E2["C-index ·<br/>Kaplan–Meier risk groups"]
+       E3["Calibration · bootstrap 95% CI"]
+       E4["Missing-modality test"]
+       E1 ~~~ E2 ~~~ E3 ~~~ E4
+   end
+
+
+   subgraph S6["Explainability & Outcome"]
+       direction TB
+       F1["Grad-CAM · learned<br/>modality weights"]
+       F2["Radiomic signature ·<br/>SHAP · permutation importance"]
+       F3[["Does adding radiomics and<br/>clinical data to CT improve<br/>2-year survival prediction?"]]
+       F1 --> F3
+       F2 --> F3
+   end
+
+
+   S1 --> S2 --> S3 --> S4 --> S5 --> S6
+```
+
+
+</details>
+
+
 **Results (pooled out-of-fold, patient level).**
 
 
-| Model | ROC-AUC [95% CI] | PR-AUC | C-index | Sens. | Spec. | Brier |
+| Model | ROC-AUC [95% CI] | PR-AUC | C-index | Sens. | Spec. | Brier ↓ |
 |---|---|---|---|---|---|---|
-| *to be filled from Phase 3 Cell 13* | | | | | | |
+| Clinical (LR) | 0.541 [0.481, 0.595] | 0.629 | 0.533 | 0.521 | 0.552 | 0.253 |
+| **Tumour volume (LR)** | 0.636 [0.581, 0.692] | **0.716** | **0.583** | 0.654 | 0.564 | 0.236 |
+| Radiomics (LR) | 0.628 [0.572, 0.679] | 0.706 | 0.580 | 0.550 | **0.626** | 0.238 |
+| Clinical + radiomics (LR) | 0.612 [0.557, 0.663] | 0.700 | 0.579 | 0.554 | 0.583 | 0.244 |
+| **Clinical + radiomics (RF)** | **0.637 [0.580, 0.693]** | 0.696 | 0.580 | 0.700 | 0.466 | **0.231** |
+| CT CNN | 0.586 [0.528, 0.644] | 0.667 | 0.553 | 0.713 | 0.454 | 0.259 |
+| CT + radiomics | 0.544 [0.487, 0.602] | 0.635 | 0.527 | 0.638 | 0.411 | 0.276 |
+| CT + radiomics + clinical | 0.561 [0.506, 0.620] | 0.641 | 0.541 | **0.750** | 0.344 | 0.248 |
+| Gated fusion | 0.621 [0.566, 0.676] | 0.688 | 0.576 | 0.696 | 0.528 | 0.242 |
+| Gated fusion + modality dropout (proposed) | 0.600 [0.543, 0.658] | 0.675 | 0.562 | 0.721 | 0.417 | 0.247 |
+| Late fusion (CT, radiomics) | 0.614 [0.559, 0.673] | 0.688 | 0.572 | 0.700 | 0.460 | 0.237 |
+| Late fusion (CT, radiomics, clinical) | 0.616 [0.559, 0.677] | 0.687 | 0.577 | 0.721 | 0.466 | 0.235 |
 
 
-**Missing-modality robustness:** *to be filled from Phase 3 Cell 14.*
+403 patients (240 died within 2 years, 163 alive after 2 years); PR-AUC of a random model ≈ 0.60.
+
+
+**Findings.**
+- **Two-year survival is hard to predict from these inputs.** The best models reach ROC-AUC of about 0.63–0.64 and a
+ C-index of about 0.58, in line with the moderate values reported for this cohort in earlier radiomics work.
+- **Tumour volume alone is as informative as the full radiomic signature** (0.636 vs 0.628). This matches the warning
+ of Welch et al. (2019) that radiomic signatures often mostly measure tumour size.
+- **Weighting sources helps more than joining them.** Among the deep models, gated fusion (0.621) is clearly above
+ simple concatenation (0.544–0.561) and the CT CNN (0.586). Late fusion of CT with radiomics and clinical data is
+ similar (0.616).
+- **Clinical variables alone add little** (0.541). Modality dropout did not raise accuracy in this phase
+ (0.600 vs 0.621); its value is robustness when a source is missing.
 
 
 Details: [`phase3-radiomics-survival/`](phase3-radiomics-survival/).
@@ -227,7 +597,110 @@ Details: [`phase3-radiomics-survival/`](phase3-radiomics-survival/).
 ---
 
 
-## 6. What the project delivers
+## 6. Proposed fusion model
+
+
+The same design is used in Phase 2 (CT + PET, with an optional clinical branch) and Phase 3 (CT + radiomics +
+clinical). Each source has its own encoder. In Phase 2, CT and PET feature maps first attend to each other.
+A small gate then learns, for every patient, how much weight each source gets, and the weighted features go to the
+classifier. During training one source is blanked at random (**modality dropout**), so the model still works when a
+source is missing. The gate weights also show how much the model relied on each source.
+
+
+```mermaid
+flowchart LR
+   subgraph IN["Inputs per patient"]
+       direction TB
+       I1[("CT crop<br/>tumour-centred")]
+       I2[("PET crop (Phase 2)<br/>SUV, aligned to CT")]
+       I3[/"Radiomic features (Phase 3)<br/>selected in training fold"/]
+       I4[/"Clinical data<br/>age · sex · stage · ..."/]
+       I1 ~~~ I2 ~~~ I3 ~~~ I4
+   end
+
+
+   subgraph MD["Modality dropout (training only)"]
+       direction TB
+       M1["Randomly blank one source<br/>per sample<br/>p = 0.25 (Ph 2) · 0.15 (Ph 3)"]
+   end
+
+
+   subgraph ENC["Encoders"]
+       direction TB
+       E1["CT encoder<br/>ImageNet ResNet-18"]
+       E2["PET encoder<br/>ImageNet ResNet-18"]
+       E3["Radiomics MLP"]
+       E4["Clinical MLP"]
+       E1 ~~~ E2 ~~~ E3 ~~~ E4
+   end
+
+
+   subgraph FUS["Fusion"]
+       direction TB
+       F1["Phase 2: CT ⇄ PET<br/>cross-attention over<br/>feature-map tokens"]
+       F2["Learned modality gate<br/>softmax weight per source,<br/>per patient"]
+       F3["Weighted feature sum<br/>(+ clinical branch)"]
+       F1 --> F2 --> F3
+   end
+
+
+   subgraph HEAD["Prediction"]
+       direction TB
+       H1["Classifier head<br/>dropout + linear"]
+       H2(["Probability<br/>Ph 2: non-adenocarcinoma<br/>Ph 3: death within 2 years"])
+       H3["Patient score =<br/>mean over slices / crops"]
+       H1 --> H2 --> H3
+   end
+
+
+   subgraph XAI["Explanations"]
+       direction TB
+       X1["Grad-CAM per<br/>image branch"]
+       X2["Gate weights =<br/>reliance on each source"]
+       X1 ~~~ X2
+   end
+
+
+   IN --> MD --> ENC --> FUS --> HEAD --> XAI
+```
+
+
+Source: [`proposed_model.mmd`](proposed_model.mmd).
+
+
+## 7. Demonstration gallery
+
+
+<table>
+<tr>
+<th></th><th>Input</th><th>Performance</th><th>Explanation</th>
+</tr>
+<tr>
+<th>Phase 1<br/>CT only</th>
+<td><img src="phase1-ct-baseline/figures/eda/class_balance.png" width="260"/><br/><sub>Class balance after sampling: all nodules plus 3 non-nodules each, split by patient.</sub></td>
+<td><img src="phase1-ct-baseline/figures/comparison/roc_curves_comparison.png" width="260"/><br/><sub>ROC curves of the four CNNs and the voting ensembles; soft voting is best (AUC 0.720).</sub></td>
+<td><img src="phase1-ct-baseline/figures/gradcam/resnet50_gradcam.png" width="260"/><br/><sub>Grad-CAM: where ResNet50 looked when calling a candidate a nodule or not.</sub></td>
+</tr>
+<tr>
+<th>Phase 2<br/>CT + PET</th>
+<td><img src="phase2-ct-pet-fusion/figures/eda3_crop_montage.png" width="260"/><br/><sub>Aligned tumour crops: CT, PET (SUV) and PET over CT for each subtype group.</sub></td>
+<td><img src="phase2-ct-pet-fusion/figures/eval1_roc_pr.png" width="260"/><br/><sub>ROC and precision-recall curves of single-scan, fusion and ensemble models (5-fold CV).</sub></td>
+<td><img src="phase2-ct-pet-fusion/figures/explain_gradcam_cross_attn_md.png" width="260"/><br/><sub>Grad-CAM of the proposed model on its CT and PET branches.</sub></td>
+</tr>
+<tr>
+<th>Phase 3<br/>CT + radiomics + clinical</th>
+<td><img src="phase3-radiomics-survival/figures/eda2_crop_montage.png" width="260"/><br/><sub>2.5D CT crops with the tumour outline (red) for survivors and non-survivors.</sub></td>
+<td><img src="phase3-radiomics-survival/figures/eval3_km_risk_groups.png" width="260"/><br/><sub>Kaplan-Meier curves of predicted high- vs low-risk patients, with log-rank p and C-index.</sub></td>
+<td><img src="phase3-radiomics-survival/figures/explain_radiomic_signature.png" width="260"/><br/><sub>Radiomic signature: features linked to higher or lower 2-year mortality.</sub></td>
+</tr>
+</table>
+
+
+The interactive version of these results, including uploading a CT scan for Phase 1, is in
+[`streamlit_ui/`](streamlit_ui/).
+
+
+## 8. What the project delivers
 
 
 1. A **CT-only baseline** with a documented, leakage-safe pipeline (Phase 1).
@@ -241,14 +714,14 @@ Details: [`phase3-radiomics-survival/`](phase3-radiomics-survival/).
   view slices, run the Phase 1 models with Grad-CAM, and browse all results.
 
 
-## 7. Repository structure
+## 9. Repository structure
 
 
 ```
 .
 ├── README.md                         # this file
 ├── system_architecture.mmd           # overall architecture (Mermaid)
-├── figures/system_architecture.png   # rendered diagram
+├── proposed_model.mmd                # proposed fusion model (Mermaid)
 ├── phase1-ct-baseline/               # Phase 1: notebook, scripts, README, figures, results
 ├── phase2-ct-pet-fusion/             # Phase 2: notebook, scripts, README
 ├── phase3-radiomics-survival/        # Phase 3: notebook, scripts, README
@@ -261,7 +734,7 @@ Details: [`phase3-radiomics-survival/`](phase3-radiomics-survival/).
 No patient data, model weights or intermediate volumes are stored in this repository.
 
 
-## 8. How to run
+## 10. How to run
 
 
 Each phase runs as one Kaggle notebook (GPU and Internet on). Use **Save Version → Save & Run All** so long runs
@@ -288,7 +761,7 @@ cd streamlit_ui && pip install -r requirements.txt && streamlit run app.py
 ```
 
 
-## 9. Datasets
+## 11. Datasets
 
 
 | Dataset | Source | Citation |
@@ -301,17 +774,17 @@ cd streamlit_ui && pip install -r requirements.txt && streamlit run app.py
 Please follow each dataset's terms of use.
 
 
-## 10. Limitations
+## 12. Limitations
 
 
 - Each phase uses a different public dataset, so results are compared within a dataset, not across phases.
 - Phase 1 reports candidate-level metrics on one split, not the LUNA16 FROC/CPM protocol.
-- Phase 2 has a small cohort (87 patients); confidence intervals are wide.
+- Phase 2 has a small cohort (78 patients after preprocessing); confidence intervals are wide.
 - Phase 3 excludes patients censored before 2 years from the binary task.
 - No external validation set; all results are internal.
 
 
-## 11. References
+## 13. References
 
 
 - S. G. Armato III *et al.*, "The Lung Image Database Consortium (LIDC) and Image Database Resource Initiative (IDRI)," *Medical Physics*, 38(2), 2011.

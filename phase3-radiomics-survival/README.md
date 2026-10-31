@@ -73,23 +73,35 @@ Editable source of the diagram (Mermaid): [`architecture.mmd`](architecture.mmd)
 ## Results (pooled out-of-fold, patient level, threshold 0.5)
 
 
-Fill from `model_results/results_all_models.csv` after the run.
-
-
-| Model | ROC-AUC [95 % CI] | PR-AUC | C-index | Sens. | Spec. | Brier |
+| Model | ROC-AUC [95% CI] | PR-AUC | C-index | Sens. | Spec. | Brier ↓ |
 |---|---|---|---|---|---|---|
-| Clinical (LR) | | | | | | |
-| Tumour volume (LR) | | | | | | |
-| Radiomics (LR) | | | | | | |
-| Clinical + radiomics (LR) | | | | | | |
-| Clinical + radiomics (RF) | | | | | | |
-| CT CNN | | | | | | |
-| CT + radiomics (intermediate) | | | | | | |
-| CT + radiomics + clinical (intermediate) | | | | | | |
-| Gated fusion | | | | | | |
-| **Gated fusion + modality dropout (proposed)** | | | | | | |
-| Late fusion: CT + radiomics | | | | | | |
-| Late fusion: CT + radiomics + clinical | | | | | | |
+| Clinical (LR) | 0.541 [0.481, 0.595] | 0.629 | 0.533 | 0.521 | 0.552 | 0.253 |
+| **Tumour volume (LR)** | 0.636 [0.581, 0.692] | **0.716** | **0.583** | 0.654 | 0.564 | 0.236 |
+| Radiomics (LR) | 0.628 [0.572, 0.679] | 0.706 | 0.580 | 0.550 | **0.626** | 0.238 |
+| Clinical + radiomics (LR) | 0.612 [0.557, 0.663] | 0.700 | 0.579 | 0.554 | 0.583 | 0.244 |
+| **Clinical + radiomics (RF)** | **0.637 [0.580, 0.693]** | 0.696 | 0.580 | 0.700 | 0.466 | **0.231** |
+| CT CNN | 0.586 [0.528, 0.644] | 0.667 | 0.553 | 0.713 | 0.454 | 0.259 |
+| CT + radiomics | 0.544 [0.487, 0.602] | 0.635 | 0.527 | 0.638 | 0.411 | 0.276 |
+| CT + radiomics + clinical | 0.561 [0.506, 0.620] | 0.641 | 0.541 | **0.750** | 0.344 | 0.248 |
+| Gated fusion | 0.621 [0.566, 0.676] | 0.688 | 0.576 | 0.696 | 0.528 | 0.242 |
+| Gated fusion + modality dropout (proposed) | 0.600 [0.543, 0.658] | 0.675 | 0.562 | 0.721 | 0.417 | 0.247 |
+| Late fusion (CT, radiomics) | 0.614 [0.559, 0.673] | 0.688 | 0.572 | 0.700 | 0.460 | 0.237 |
+| Late fusion (CT, radiomics, clinical) | 0.616 [0.559, 0.677] | 0.687 | 0.577 | 0.721 | 0.466 | 0.235 |
+
+
+403 patients (240 died within 2 years, 163 alive after 2 years); PR-AUC of a random model ≈ 0.60.
+
+
+**Findings.**
+- **Two-year survival is hard to predict from these inputs.** The best models reach ROC-AUC of about 0.63–0.64 and a
+ C-index of about 0.58, in line with the moderate values reported for this cohort in earlier radiomics work.
+- **Tumour volume alone is as informative as the full radiomic signature** (0.636 vs 0.628). This matches the warning
+ of Welch et al. (2019) that radiomic signatures often mostly measure tumour size.
+- **Weighting sources helps more than joining them.** Among the deep models, gated fusion (0.621) is clearly above
+ simple concatenation (0.544–0.561) and the CT CNN (0.586). Late fusion of CT with radiomics and clinical data is
+ similar (0.616).
+- **Clinical variables alone add little** (0.541). Modality dropout did not raise accuracy in this phase
+ (0.600 vs 0.621); its value is robustness when a source is missing.
 
 
 ## Repository structure
