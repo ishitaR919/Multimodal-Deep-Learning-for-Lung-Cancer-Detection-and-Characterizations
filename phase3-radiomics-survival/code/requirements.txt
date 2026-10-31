@@ -1,0 +1,14 @@
+numpy
+pandas
+scipy
+scikit-learn
+scikit-image
+SimpleITK
+pydicom
+openpyxl          # only if the clinical file is .xlsx
+matplotlib
+seaborn
+torch
+torchvision
+shap              # optional: SHAP summary plot
+pyradiomics       # optional: full feature set; without it the built-in "lite" features are used
